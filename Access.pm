@@ -1,6 +1,6 @@
 package Logfile::Access;
 
-# $Id: Access.pm,v 1.27 2004/10/24 15:21:43 root Exp $
+# $Id: Access.pm,v 1.30 2004/10/25 18:58:12 root Exp $
 
 use 5.008;
 use strict;
@@ -31,7 +31,7 @@ our @EXPORT = qw(
 	
 );
 
-our $VERSION = '1.27';
+our $VERSION = '1.30';
 
 # Preloaded methods go here.
 
@@ -128,7 +128,7 @@ sub parse
   my $self = shift;
   my $row = shift;
 
-  $row =~ s/\m|\r//g;
+  $row =~ s/\n|\r//g;
 
   if (
     ($row =~ /^@{[REGEX_IP]} (\S+) (\S+) \[@{[REGEX_DATE]}:@{[REGEX_TIME]} @{[REGEX_OFFSET]}\] \"@{[REGEX_METHOD]} @{[REGEX_OBJECT]} @{[REGEX_PROTOCOL]}\" @{[REGEX_STATUS]} @{[REGEX_CONTENT_LENGTH]} *$/)
@@ -155,10 +155,7 @@ sub parse
     $self->{"content_length"} = $15;
     $self->{"http_referer"} = $16;
     $self->{"http_user_agent"} = $17;
-    }
-  elsif ($row =~ /^(\S+) (\S+) (\S+) \[(\d{2})\/(\w{3})\/(\d{4}):(\d{2}):(\d{2}):(\d{2}) ([+\-]\d{4})\] \"(\S+) ([^ ]+) (\w+\/[\d\.]+)\" (\d+) (\d+) *\"?([^"]+)?\"?/)
-  {
-    warn "ok";
+    return 1;
     }
   else
   {
@@ -166,7 +163,7 @@ sub parse
     return 0;
     }
   #if (@_) {$self->{$class} = shift}
-  return $self->{$class}
+  #return $self->{$class}
   }
 
 sub print
@@ -185,7 +182,6 @@ sub print
 ## REMOTE HOST RELATED FUNCTIONS
 sub class_a
 {
-  my $class = "tld";
   my $self = shift;
   
   my $host = $self->remote_host;
@@ -197,7 +193,6 @@ sub class_a
 
 sub class_b
 {
-  my $class = "tld";
   my $self = shift;
   
   my $host = $self->remote_host;
@@ -209,7 +204,6 @@ sub class_b
 
 sub class_c
 {
-  my $class = "tld";
   my $self = shift;
   
   my $host = $self->remote_host;
@@ -227,12 +221,11 @@ sub tld
   
   if (my $host = $self->{"remote_host"})
   {
-    if ($host =~ /\.([a-z]{2})(:\d+)?$/i)
+    if ($host =~ /\.([a-z]{2,5})$/i)
     {
       my $tld = $1;
       $tld =~ tr/A-Z/a-z/;
-      $self->{$class} = $tld;
-      return $self->{$class};
+      return $tld;
       }
     }
   }
