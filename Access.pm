@@ -1,6 +1,6 @@
 package Logfile::Access;
 
-# $Id: Access.pm,v 1.23 2004/10/24 07:39:13 root Exp $
+# $Id: Access.pm,v 1.27 2004/10/24 15:21:43 root Exp $
 
 use 5.008;
 use strict;
@@ -31,7 +31,7 @@ our @EXPORT = qw(
 	
 );
 
-our $VERSION = '1.23';
+our $VERSION = '1.27';
 
 # Preloaded methods go here.
 
@@ -82,13 +82,59 @@ sub load_mime_types
     }
   }
 
+use constant REGEX_IP => q{(\S+)};
+use constant REGEX_DATE => q{(\d{2})\/(\w{3})\/(\d{4})};
+use constant REGEX_TIME => q{(\d{2}):(\d{2}):(\d{2})};
+use constant REGEX_OFFSET => q{([+\-]\d{4})};
+use constant REGEX_METHOD => q{(\S+)};
+use constant REGEX_OBJECT => q{([^ ]+)};
+use constant REGEX_PROTOCOL => q{(\w+\/[\d\.]+)};
+use constant REGEX_STATUS => q{(\d+|\-)};
+use constant REGEX_CONTENT_LENGTH => q{(\d+|\-)};
+use constant REGEX_HTTP_REFERER => q{([^"]+)};
+use constant REGEX_HTTP_USER_AGENT => q{([^"]+)};
+use constant REGEX_COOKIE => q{([^"]+)};
+
+sub parse_iis
+{
+  my $class = "parse";
+  my $self = shift;
+  my $row = shift;
+
+#1998-11-19 22:48:39 206.175.82.5 - 208.201.133.173 GET /global/images/navlineboards.gif - 200 540 324 157 HTTP/1.0 Mozilla/4.0+(compatible;+MSIE+4.01;+Windows+95) USERID=CustomerA;+IMPID=01234 http://www.loganalyzer.net
+  if ($row =~ /^(\d{4})-(\d{2})-(\d{2}) @{[REGEX_TIME]} @{[REGEX_IP]} @{[REGEX_IP]} @{[REGEX_METHOD]} @{[REGEX_OBJECT]} (\S+) @{[REGEX_STATUS]} (\d+) (\d+) (\d+) (\d+) @{[REGEX_PROTOCOL]} @{[REGEX_HTTP_USER_AGENT]} @{[REGEX_COOKIE]} @{[REGEX_HTTP_REFERER]} *$/)
+  {
+    $self->{"date"} = join("/", $1, $2, $3);
+    $self->{"year"} = $1;
+    $self->{"month"} = $2;
+    $self->{"mday"} = $3;
+
+    $self->{"time"} = join(":", $4, $5, $6);
+    $self->{"hour"} = $4;
+    $self->{"minute"} = $5;
+    $self->{"second"} = $6;
+    }
+  else
+  {
+    return 0;
+    }
+
+  return $self->{$class}
+  }
+
 sub parse
 {
   my $class = "parse";
   my $self = shift;
   my $row = shift;
 
-  if ($row =~ /^(\S+) (\S+) (\S+) \[(\d{2})\/(\w{3})\/(\d{4}):(\d{2}):(\d{2}):(\d{2}) ([+\-]\d{4})\] \"(\S+) ([^ ]+) (\w+\/[\d\.]+)\" (\d+) (\d+) *\"?([^"]+)?\"? ?\"?([^"]+)?\"?$/)
+  $row =~ s/\m|\r//g;
+
+  if (
+    ($row =~ /^@{[REGEX_IP]} (\S+) (\S+) \[@{[REGEX_DATE]}:@{[REGEX_TIME]} @{[REGEX_OFFSET]}\] \"@{[REGEX_METHOD]} @{[REGEX_OBJECT]} @{[REGEX_PROTOCOL]}\" @{[REGEX_STATUS]} @{[REGEX_CONTENT_LENGTH]} *$/)
+    ||
+    ($row =~ /^@{[REGEX_IP]} (\S+) (\S+) \[@{[REGEX_DATE]}:@{[REGEX_TIME]} @{[REGEX_OFFSET]}\] \"@{[REGEX_METHOD]} @{[REGEX_OBJECT]} @{[REGEX_PROTOCOL]}\" @{[REGEX_STATUS]} @{[REGEX_CONTENT_LENGTH]} \"?@{[REGEX_HTTP_REFERER]}\"? \"?@{[REGEX_HTTP_USER_AGENT]}\"?$/)
+    )
   {
     $self->{"remote_host"} = $1;
     $self->{"logname"} = $2;
@@ -110,9 +156,13 @@ sub parse
     $self->{"http_referer"} = $16;
     $self->{"http_user_agent"} = $17;
     }
+  elsif ($row =~ /^(\S+) (\S+) (\S+) \[(\d{2})\/(\w{3})\/(\d{4}):(\d{2}):(\d{2}):(\d{2}) ([+\-]\d{4})\] \"(\S+) ([^ ]+) (\w+\/[\d\.]+)\" (\d+) (\d+) *\"?([^"]+)?\"?/)
+  {
+    warn "ok";
+    }
   else
   {
-    die $row;
+    #die $row;
     return 0;
     }
   #if (@_) {$self->{$class} = shift}
@@ -174,13 +224,16 @@ sub tld
   my $class = "tld";
   my $self = shift;
 
-  my $host = $self->{"remote_host"};
-  if ($host =~ /\.([a-z]{2})(:\d+)?$/i)
+  
+  if (my $host = $self->{"remote_host"})
   {
-    my $tld = $1;
-    $tld =~ tr/A-Z/a-z/;
-    $self->{$class} = $tld;
-    return $self->{$class};
+    if ($host =~ /\.([a-z]{2})(:\d+)?$/i)
+    {
+      my $tld = $1;
+      $tld =~ tr/A-Z/a-z/;
+      $self->{$class} = $tld;
+      return $self->{$class};
+      }
     }
   }
 
